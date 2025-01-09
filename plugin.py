@@ -1,12 +1,13 @@
 from cat.mad_hatter.decorators import tool, hook, plugin
 from pydantic import BaseModel
 import json
+
 from langchain_community.utilities import SQLDatabase
 from langchain.chains import create_sql_query_chain
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-EXAMPLE_DB_URL = "sqlite:///cat/data/purrsql_example.db"
+EXAMPLE_DB_URL = "sqlite:///cat/plugins/purrsql/example.db"
 
 class PurrSQLSettings(BaseModel):
     db_url: str = EXAMPLE_DB_URL
