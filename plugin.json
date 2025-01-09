@@ -1,0 +1,10 @@
+{
+    "name": "PurrSQL",
+    "version": "0.0.0",
+    "description": "The best plugin for purr-fect SQL queries",
+    "author_name": "me@matteogheza.it",
+    "author_url": "https://github.com/matteogheza",
+    "plugin_url": "https://github.com/matteogheza/cc_plugin_purrsql",
+    "tags": "sql, sqlite, sqlite3, query, database",
+    "thumb": "https://raw.githubusercontent.com/matteogheza/cc_plugin_purrsql/main/logo.png"
+}
