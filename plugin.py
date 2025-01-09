@@ -1,6 +1,6 @@
 from cat.mad_hatter.decorators import tool, hook, plugin
 from pydantic import BaseModel
-from datetime import date, time
+import json
 from langchain_community.utilities import SQLDatabase
 from langchain.chains import create_sql_query_chain
 from langchain_core.output_parsers import StrOutputParser
@@ -98,11 +98,14 @@ Output the final SQL query only."""
 
     try:
         result = str(db.run(query))
-        return {
+        columns_json = cat.llm(f"Extract the result columns from the SQL query and return a JSON list of strings: {query}. If not applicable, reply with '[]'.")
+        columns = json.loads(columns_json.replace("\n", "").replace("```", "").replace("json", ""))
+        response = {
             "result": result,
-            "columns": []
+            "columns": columns
         }
     except Exception as e:
-        return {
-            result: str(e)
+        response = {
+            "result": str(e)
         }
+    return json.dumps(response)
