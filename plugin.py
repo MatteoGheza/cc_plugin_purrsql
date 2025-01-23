@@ -1,4 +1,5 @@
 from cat.mad_hatter.decorators import tool, hook, plugin
+from cat.log import log
 from pydantic import BaseModel
 import json
 
@@ -98,9 +99,11 @@ Output the final SQL query only."""
         query = query.split("sql ")[1]
 
     try:
+        log.info(query)
+        cat.send_chat_message(f"""Query SQL eseguita: \n```sql\n{query}\n```""")
         result = str(db.run(query))
         columns_json = cat.llm(f"Extract the result columns from the SQL query and return a JSON list of strings: {query}. If not applicable, reply with '[]'.")
-        columns = json.loads(columns_json.replace("\n", "").replace("```", "").replace("json", ""))
+        columns = json.loads(columns_json.replace("\n", "").replace("```json", "").replace("```", ""))
         response = {
             "result": result,
             "columns": columns
