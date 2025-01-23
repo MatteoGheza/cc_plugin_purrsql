@@ -1,6 +1,8 @@
 from cat.mad_hatter.decorators import tool, hook, plugin
 from cat.log import log
+from cat.experimental.form import CatForm, form
 from pydantic import BaseModel
+from enum import Enum
 import json
 
 from langchain_community.utilities import SQLDatabase
@@ -113,3 +115,37 @@ Output the final SQL query only."""
             "result": str(e)
         }
     return json.dumps(response)
+
+
+class DBType(str, Enum):
+    sqlite = "sqlite"
+    mysql = "mysql"
+    postgresql = "postgresql"
+
+class DBConnectionInfo(BaseModel):
+    db_type: DBType = DBType.sqlite
+    db_host_or_path: str
+    db_port: int = 0
+    db_name: str = ""
+    username: str = ""
+    password: str = ""
+
+@form
+class DBForm(CatForm):
+    description = "Remote DB Connection"
+    model_class = DBConnectionInfo
+    start_examples = [
+        "connect new database",
+        "create new MySQL/PostgreSQL/SQLite connection"
+    ]
+    stop_examples = [
+        "do not connect database",
+        "stop connecting to database"
+    ]
+    ask_confirm = True
+
+    def submit(self, form_data):
+        conn_url = self.cat.llm(f"""You now return ONLY a data connection for a DB client to connect to a DB. Make a DB connection url from the following data: {json.dumps(form_data)}""")
+        return {
+            "output": f"Stringa di connessione: {conn_url}. Modifica la configurazione dalle impostazioni del DB."
+        }
