@@ -12,8 +12,8 @@ class PurrSQLSettings(BaseModel):
     db_url: str = EXAMPLE_DB_URL
     enable_query_debugger: bool = True
     helper_llm_api_key: str = ""
-    helper_llm_model: str = "gemini-1.5-pro"
-    helper_llm: HelperLLM = HelperLLM.gemini
+    helper_llm_model: str = ""
+    helper_llm: HelperLLM = HelperLLM.cat
 
 class DBType(str, Enum):
     sqlite = "sqlite"
