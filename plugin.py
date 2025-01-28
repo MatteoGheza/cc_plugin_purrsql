@@ -14,10 +14,6 @@ import sqlparse
 from cat.plugins.purrsql.models import HelperLLM, PurrSQLSettings, DBConnectionInfo, EXAMPLE_DB_URL
 from cat.plugins.purrsql.helpers import clean_langchain_query, extract_columns_from_query
 
-@plugin
-def settings_model():
-    return PurrSQLSettings
-
 @hook
 def agent_prompt_prefix(prefix, cat):
     return """You are a DB client. You reply in a complete and precise way to user questions.
@@ -53,6 +49,13 @@ def apply_settings(settings):
     
     enable_query_debugger = settings["enable_query_debugger"]
 
+@plugin
+def settings_model():
+    return PurrSQLSettings
+
+@plugin
+def save_settings(settings):
+    apply_settings(settings)
 
 @hook  # default priority = 1
 def after_cat_bootstrap(cat):
