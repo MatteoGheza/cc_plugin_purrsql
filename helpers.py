@@ -7,7 +7,7 @@ def clean_langchain_query(query):
     query = query.replace("```", "")
     if "sql " in query:
         query = query.split("sql ")[1]
-    return query
+    return query.strip()
 
 def extract_columns_from_query(llm, query):
     query_lower = query.lower()

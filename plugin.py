@@ -28,7 +28,11 @@ enable_query_debugger = True
 def apply_settings(settings):
     global db, custom_llm, enable_query_debugger
 
-    db = SQLDatabase.from_uri(settings["db_url"])
+    try:
+        db = SQLDatabase.from_uri(settings["db_url"])
+    except Exception as e:
+        log.error(f"Failed to connect to the database: {e}")
+        db = None
 
     match settings["helper_llm"]:
         case HelperLLM.llama:
@@ -182,8 +186,8 @@ class DBForm(CatForm):
     description = "Remote DB Connection"
     model_class = DBConnectionInfo
     start_examples = [
-        "connect new database",
-        "create new MySQL/PostgreSQL/SQLite connection"
+        "start new database connection",
+        "start new MySQL/PostgreSQL/SQLite connection"
     ]
     stop_examples = [
         "do not connect database",
@@ -192,7 +196,23 @@ class DBForm(CatForm):
     ask_confirm = True
 
     def submit(self, form_data):
-        conn_url = self.cat.llm(f"""You now return ONLY a data connection for a DB client to connect to a DB. Make a DB connection url from the following data: {json.dumps(form_data)}""")
+        conn_url = clean_langchain_query(
+            self.cat.llm(f"""You now return ONLY a data connection for a DB client to connect to a DB. Make a DB connection url from the following data: {json.dumps(form_data)}""")
+        )
+        
+        settings_path = os.path.join(os.path.dirname(__file__), "settings.json")
+        settings = {}
+        with open(settings_path, "r") as f:
+            settings = json.load(f)
+            settings["db_url"] = conn_url
+        with open(settings_path, "w") as f:
+            json.dump(settings, f, indent=4)
+        
+        apply_settings(settings)
+
+        if enable_query_debugger:
+            self.cat.send_chat_message(f"""Stringa di connessione: \n```{conn_url}```""")
+        
         return {
-            "output": f"Stringa di connessione: {conn_url}. Modifica la configurazione dalle impostazioni del DB."
+            "output": "La configurazione è stata aggiornata."
         }
