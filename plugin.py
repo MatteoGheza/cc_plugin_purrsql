@@ -186,8 +186,7 @@ Important rules:
 
 @tool
 def check_db_connection(tool_input, cat):
-    """This plugin should be used when user asks to check the database connection.
-    The output is a JSON object, with names of tables available."""
+    """This plugin should be used when user asks if database connection works."""
     global db
     settings = cat.mad_hatter.get_plugin().load_settings()
 
@@ -203,7 +202,9 @@ def check_db_connection(tool_input, cat):
         except Exception as e:
             return f"Database connection failed: {e}"
         
-        return json.dumps(db.get_usable_table_names())
+        return json.dumps({
+            "tables": db.get_usable_table_names()
+        })
 
 
 @form
