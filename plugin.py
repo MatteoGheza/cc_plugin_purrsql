@@ -27,14 +27,16 @@ When suited, provide the data in a markdown table format, with the first row bei
 
 db = None
 custom_llm = None
+enable_query_debugger = True
 
 @hook  # default priority = 1
 def after_cat_bootstrap(cat):
-    global db, custom_llm
+    global db, custom_llm, enable_query_debugger
     settings = cat.mad_hatter.get_plugin().load_settings()
 
     default_settings = {
         "db_url": EXAMPLE_DB_URL,
+        "enable_query_debugger": True,
         "helper_llm_api_key": "",
         "helper_llm_model": "",
         "helper_llm": "cat"
@@ -60,6 +62,8 @@ def after_cat_bootstrap(cat):
             timeout=None,
             max_retries=2
         )
+    
+    enable_query_debugger = settings["enable_query_debugger"]
 
 @tool
 def database(tool_input, cat):
@@ -83,7 +87,7 @@ Example output:
     "result": "no data found"
 }
 """
-    global db, custom_llm
+    global db, custom_llm, enable_query_debugger
 
     if db is None:
         return "Database is not connected. Please update the settings."
@@ -132,7 +136,9 @@ Important rules:
 
     try:
         log.info(query)
-        cat.send_chat_message(f"""Query SQL eseguita: \n```sql\n{query}\n```""")
+        
+        if enable_query_debugger:
+            cat.send_chat_message(f"""Query SQL eseguita: \n```sql\n{query}\n```""")
 
         statements = sqlparse.split(query)
 
