@@ -1,15 +1,18 @@
 from cat.mad_hatter.decorators import tool, hook, plugin
 from cat.log import log
-from cat.experimental.form import CatForm, form
+from cat.experimental.form import CatForm, CatFormState, form
+
+from typing import List
+from pydantic import BaseModel, ValidationError
+
 import json
 import os
+import sqlparse
 
 from langchain_community.utilities import SQLDatabase
 from langchain.chains import create_sql_query_chain
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-
-import sqlparse
 
 from cat.plugins.purrsql.models import HelperLLM, PurrSQLSettings, DBConnectionInfo, EXAMPLE_DB_URL
 from cat.plugins.purrsql.helpers import clean_langchain_query, extract_columns_from_query
@@ -194,25 +197,114 @@ class DBForm(CatForm):
         "stop connecting to database"
     ]
     ask_confirm = True
+    
+    # Implement custom form messages
+    def message(self): # 
+        if self._state == CatFormState.CLOSED: #
+            return {
+                "output": "Connection wizard completed. Bye!"
+            }
+        
+        separator = "\n - "
+        missing_fields = ""
+        if self._missing_fields:
+            missing_fields = "\nSome fields are missing:"
+            missing_fields += separator + separator.join(self._missing_fields)
+        invalid_fields = ""
+        if self._errors:
+            invalid_fields = "\nSome information you provided is invalid:"
+            invalid_fields += separator + separator.join(self._errors)
 
+        info_list = ""
+        if self._model:
+            info_list = separator + separator.join([f"{k}: {v}" for k, v in self._model.items()])
+            out = f"""Connection settings provided until now:{info_list}<br>{missing_fields}{invalid_fields}"""
+        
+        if self._state == CatFormState.WAIT_CONFIRM:
+            out += "\n --> Write 'yes' to confirm and connect, 'no' to cancel."
+
+        return {
+            "output": out
+        }
+    
+    # Using custom validator, since optional fields are always ignored in current implementation
+    def validate(self):
+        self._missing_fields = []
+        self._errors = []
+
+        try:
+            # First validate basic fields
+            if "db_type" in self._model:
+                # Check if type is valid, if not use LLM to suggest correction
+                allowed_types = ["mysql", "postgresql", "sqlite"]
+
+                if self._model["db_type"].lower() not in allowed_types:
+                    # Useful when user types "sqlite3" instead of "sqlite"
+                    # Works if I ask to connect to "that DB with a delfin in the logo and name that start with M". Useless but fun.
+                    suggestion = self.cat.llm(f"Which database type from {allowed_types} is most similar to '{self._model['db_type']}'? Reply with just the name in lowercase or 'invalid' if none match.")
+                    if suggestion.strip().lower() in allowed_types:
+                        self._model["db_type"] = suggestion.strip().lower()
+                
+                # Remove database authentication fields for SQLite since they are not needed
+                if self._model["db_type"].lower() == "sqlite":
+                    # Using dictionary comprehension to filter out fields
+                    self._model = {k: v for k, v in self._model.items() 
+                                 if k not in ["db_user", "db_password", "db_name"]}
+            
+            if "db_port" in self._model:
+                # Check if port is valid, if not use LLM to suggest correction
+                if self._model["db_port"] < 0 or self._model["db_port"] > 65535:
+                    self._errors.append("Port number must be between 0 and 65535")
+                    del self._model["db_port"]
+            
+            # Attempts to create the model object to update the default values and validate it
+            self.model_getter()(**self._model).model_dump(mode="json")
+
+            # If model is valid change state to COMPLETE
+            self._state = CatFormState.COMPLETE
+
+        except ValidationError as e:
+            # Collect ask_for and errors messages
+            for error_message in e.errors():
+                field_name = error_message["loc"][0]
+                if error_message["type"] == "missing":
+                    self._missing_fields.append(field_name)
+                else:
+                    self._errors.append(f'{field_name}: {error_message["msg"]}')
+                    del self._model[field_name]
+
+            # Set state to INCOMPLETE
+            self._state = CatFormState.INCOMPLETE
+
+    # This method is called when all fields are filled and the form is confirmed
     def submit(self, form_data):
         conn_url = clean_langchain_query(
             self.cat.llm(f"""You now return ONLY a data connection for a DB client to connect to a DB. Make a DB connection url from the following data: {json.dumps(form_data)}""")
         )
         
-        settings_path = os.path.join(os.path.dirname(__file__), "settings.json")
-        settings = {}
-        with open(settings_path, "r") as f:
-            settings = json.load(f)
-            settings["db_url"] = conn_url
-        with open(settings_path, "w") as f:
-            json.dump(settings, f, indent=4)
-        
-        apply_settings(settings)
+        settings_updated = False
 
-        if enable_query_debugger:
-            self.cat.send_chat_message(f"""Stringa di connessione: \n```{conn_url}```""")
+        try:
+            settings_path = os.path.join(os.path.dirname(__file__), "settings.json")
+            settings = {}
+            with open(settings_path, "r") as f:
+                settings = json.load(f)
+                settings["db_url"] = conn_url
+            with open(settings_path, "w") as f:
+                json.dump(settings, f, indent=4)
+            
+            apply_settings(settings)
+            settings_updated = True
+        except Exception as e:
+            log.error(f"Failed to update the settings from runtime: {e}")
         
-        return {
-            "output": "La configurazione è stata aggiornata."
-        }
+        if settings_updated:
+            if enable_query_debugger:
+                self.cat.send_chat_message(f"""Stringa di connessione: \n```{conn_url}```""")
+            return {
+                "output": "La configurazione è stata aggiornata."
+            }
+        else:
+            return {
+                "output": f"Errore durante l'aggiornamento della configurazione. Impostare manualmente la stringa di connessione dalle impostazioni:\n```{conn_url}```"""
+            }
