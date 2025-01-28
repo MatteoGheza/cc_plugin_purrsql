@@ -4,7 +4,7 @@ from cat.experimental.form import CatForm, form
 from pydantic import BaseModel
 from enum import Enum
 import json
-
+import os
 import sqlparse
 
 from langchain_community.utilities import SQLDatabase
@@ -14,8 +14,16 @@ from langchain_core.prompts import ChatPromptTemplate
 
 EXAMPLE_DB_URL = "sqlite:///cat/plugins/purrsql/example.db"
 
+class HelperLLM(str, Enum):
+    cat = "cat"
+    llama = "llama"
+    gemini = "gemini"
+
 class PurrSQLSettings(BaseModel):
     db_url: str = EXAMPLE_DB_URL
+    helper_llm_api_key: str = ""
+    helper_llm_model: str = "gemini-1.5-pro"
+    helper_llm: HelperLLM = HelperLLM.gemini
 
 @plugin
 def settings_model():
@@ -29,17 +37,40 @@ When suited, provide the data in a markdown table format, with the first row bei
 """
 
 db = None
+custom_llm = None
 
 @hook  # default priority = 1
 def after_cat_bootstrap(cat):
-    global db
+    global db, custom_llm
     settings = cat.mad_hatter.get_plugin().load_settings()
-    if settings is None or "db_url" not in settings:
-        settings = {
-            "db_url": EXAMPLE_DB_URL
-        }
+
+    default_settings = {
+        "db_url": EXAMPLE_DB_URL,
+        "helper_llm_api_key": "",
+        "helper_llm_model": "",
+        "helper_llm": "cat"
+    }
+    # Check if the settings are missing or incomplete (settings file updated manually or old plugin version)
+    if not settings or not all(key in settings for key in default_settings):
+        # Merge existing settings with defaults, keeping existing values when present
+        settings = {**default_settings, **(settings or {})}
         cat.mad_hatter.get_plugin().save_settings(settings)
+
     db = SQLDatabase.from_uri(settings["db_url"])
+
+    if settings["helper_llm"] == HelperLLM.llama:
+        #TODO
+        pass
+    elif settings["helper_llm"] == HelperLLM.gemini:
+        os.environ["GOOGLE_API_KEY"] = settings["helper_llm_api_key"]
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        custom_llm = ChatGoogleGenerativeAI(
+            model=settings["helper_llm_model"],
+            temperature=0,
+            max_tokens=None,
+            timeout=None,
+            max_retries=2
+        )
 
 @tool
 def database(tool_input, cat):
@@ -63,12 +94,15 @@ Example output:
     "result": "no data found"
 }
 """
-    global db
+    global db, custom_llm
 
     if db is None:
         return "Database is not connected. Please update the settings."
+    
+    # Setup a new Langchain LLM
+    llm = custom_llm or cat._llm
 
-    chain = create_sql_query_chain(cat._llm, db)
+    chain = create_sql_query_chain(llm, db)
 
     system = """Double check the user's {dialect} query for common mistakes, including:
 - Using NOT IN with NULL values
