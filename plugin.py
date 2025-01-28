@@ -1,29 +1,18 @@
 from cat.mad_hatter.decorators import tool, hook, plugin
 from cat.log import log
 from cat.experimental.form import CatForm, form
-from pydantic import BaseModel
-from enum import Enum
 import json
 import os
-import sqlparse
 
 from langchain_community.utilities import SQLDatabase
 from langchain.chains import create_sql_query_chain
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-EXAMPLE_DB_URL = "sqlite:///cat/plugins/purrsql/example.db"
+import sqlparse
 
-class HelperLLM(str, Enum):
-    cat = "cat"
-    llama = "llama"
-    gemini = "gemini"
-
-class PurrSQLSettings(BaseModel):
-    db_url: str = EXAMPLE_DB_URL
-    helper_llm_api_key: str = ""
-    helper_llm_model: str = "gemini-1.5-pro"
-    helper_llm: HelperLLM = HelperLLM.gemini
+from cat.plugins.purrsql.models import HelperLLM, PurrSQLSettings, DBConnectionInfo, EXAMPLE_DB_URL
+from cat.plugins.purrsql.helpers import clean_langchain_query, extract_columns_from_query
 
 @plugin
 def settings_model():
@@ -77,7 +66,7 @@ def database(tool_input, cat):
     """This plugin should be used when user asks to get, insert, update, filter, delete data from the database.
 Data can be ordered or filtered in different ways.
 tool_input is a HUMAN FORMATTED STRING, WHICH IS A QUESTION OR COMMAND, NOT SQL QUERY OR ANYTHING ELSE.
-The command can be multiple requests, separated by a period, which will be executed in order.
+The command can be multiple requests, separated by "THEN", which will be executed in order.
 The output is a JSON object, with "result" key containing the result of the query and "columns" key containing the column names.
 If the query returns error, the "result" key contains the error message string.
 PROVIDE THE DATA IN A MARKDOWN TABLE FORMAT, WITH THE FIRST ROW BEING THE KEY NAMES.
@@ -104,7 +93,9 @@ Example output:
 
     chain = create_sql_query_chain(llm, db)
 
-    system = """Double check the user's {dialect} query for common mistakes, including:
+    system = """You are a SQL query validator and optimizer. Your task is to process every statement (divided by THEN) contained in the input query sequentially.
+For each query in the input:
+1. Validate the {dialect} query for common mistakes, including:
 - Using NOT IN with NULL values
 - Using UNION when UNION ALL should have been used
 - Using BETWEEN for exclusive ranges
@@ -117,11 +108,16 @@ Example output:
 - If selecting data from multiple tables, ensure that every column name is unique or aliased
 - Make sure the table exists and the column names are correct
 
-If there are any of the above mistakes, rewrite the query.
-If there are no mistakes, just reproduce the original query with no further commentary.
+2. If there are any mistakes in a query, rewrite that specific query.
+3. If there are no mistakes in a query, reproduce it exactly as is.
 
-Output the final SQL query only.
-If there are multiple queries, output them separated by a semicolon.
+Important rules:
+- Process and output ALL queries in the original order
+- Maintain the original sequence of operations
+- Each query must be separated by a semicolon and combined into a single string
+- Include a semicolon after the last query
+- Do not include any comments in the output
+- Do not skip or ignore any queries
 """
     prompt = ChatPromptTemplate.from_messages(
         [("system", system), ("human", "{query}")]
@@ -132,12 +128,7 @@ If there are multiple queries, output them separated by a semicolon.
 
     query = full_chain.invoke({"question": tool_input})
 
-    if query.startswith("SQLQuery: "):
-        query = query.split(": ")[1]
-    query = query.replace("\n", " ")
-    query = query.replace("```", "")
-    if "sql " in query:
-        query = query.split("sql ")[1]
+    query = clean_langchain_query(query)
 
     try:
         log.info(query)
@@ -145,36 +136,27 @@ If there are multiple queries, output them separated by a semicolon.
 
         statements = sqlparse.split(query)
 
-        result = []
-        for statement in statements:
-            result.append(str(db.run(statement)))
-
-        columns_json = cat.llm(f"Extract the result columns from the SQL query and return a JSON list of strings: {query}. If not applicable, reply with '[]'.")
-        columns = json.loads(columns_json.replace("\n", "").replace("```json", "").replace("```", ""))
-
-        response = {
-            "result": result,
-            "columns": columns
-        }
+        if len(statements) == 0:
+            return "No valid query to execute"
+        elif len(statements) == 1:
+            response = {
+                "result": str(db.run(statements[0])),
+                "columns": extract_columns_from_query(llm, query)
+            }
+        else:
+            response = []
+            for statement in statements:
+                # Ignore BEGIN and COMMIT statements if added by Langchain
+                if not statement.startswith("BEGIN") and not statement.startswith("COMMIT"):
+                    response.append({
+                        "result": str(db.run(statement)),
+                        "columns": extract_columns_from_query(llm, statement)
+                    })
     except Exception as e:
         response = {
             "result": str(e)
         }
     return json.dumps(response)
-
-
-class DBType(str, Enum):
-    sqlite = "sqlite"
-    mysql = "mysql"
-    postgresql = "postgresql"
-
-class DBConnectionInfo(BaseModel):
-    db_type: DBType = DBType.sqlite
-    db_host_or_path: str
-    db_port: int = 0
-    db_name: str = ""
-    username: str = ""
-    password: str = ""
 
 @form
 class DBForm(CatForm):
