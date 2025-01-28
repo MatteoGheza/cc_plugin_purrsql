@@ -109,7 +109,7 @@ Example output:
     global db, custom_llm, enable_query_debugger
 
     if db is None:
-        return "Database is not connected. Please update the settings."
+        return "Database is not connected. Please update the settings or ask 'check the DB connection' to do troubleshooting."
     
     # Setup a new Langchain LLM
     llm = custom_llm or cat._llm
@@ -182,6 +182,28 @@ Important rules:
             "result": str(e)
         }
     return json.dumps(response)
+
+
+@tool
+def check_db_connection(tool_input, cat):
+    """This plugin should be used when user asks to check the database connection.
+    The output is a JSON object, with names of tables available."""
+    global db
+    settings = cat.mad_hatter.get_plugin().load_settings()
+
+    if db is None:
+        try:
+            SQLDatabase.from_uri(settings["db_url"])
+        except Exception as e:
+            return f"Database connection failed: {e}"
+    else:
+        # Check if the connection is still alive
+        try:
+            db.run("SELECT 1")
+        except Exception as e:
+            return f"Database connection failed: {e}"
+        
+        return json.dumps(db.get_usable_table_names())
 
 
 @form
