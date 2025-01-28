@@ -29,41 +29,50 @@ db = None
 custom_llm = None
 enable_query_debugger = True
 
+def apply_settings(settings):
+    global db, custom_llm, enable_query_debugger
+
+    db = SQLDatabase.from_uri(settings["db_url"])
+
+    match settings["helper_llm"]:
+        case HelperLLM.llama:
+            #TODO
+            pass
+        case HelperLLM.gemini:
+            os.environ["GOOGLE_API_KEY"] = settings["helper_llm_api_key"]
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            custom_llm = ChatGoogleGenerativeAI(
+                model=settings["helper_llm_model"],
+                temperature=0,
+                max_tokens=None,
+                timeout=None,
+                max_retries=2
+            )
+        case _:
+            custom_llm = None
+    
+    enable_query_debugger = settings["enable_query_debugger"]
+
+
 @hook  # default priority = 1
 def after_cat_bootstrap(cat):
-    global db, custom_llm, enable_query_debugger
     settings = cat.mad_hatter.get_plugin().load_settings()
 
+    # Get the default settings from the settings model schema
+    default_settings = PurrSQLSettings.model_json_schema()["properties"]
     default_settings = {
-        "db_url": EXAMPLE_DB_URL,
-        "enable_query_debugger": True,
-        "helper_llm_api_key": "",
-        "helper_llm_model": "",
-        "helper_llm": "cat"
+        k: v.get("default", "") for k, v in default_settings.items() 
+        if not k.startswith("_")
     }
+
     # Check if the settings are missing or incomplete (settings file updated manually or old plugin version)
     if not settings or not all(key in settings for key in default_settings):
         # Merge existing settings with defaults, keeping existing values when present
         settings = {**default_settings, **(settings or {})}
         cat.mad_hatter.get_plugin().save_settings(settings)
-
-    db = SQLDatabase.from_uri(settings["db_url"])
-
-    if settings["helper_llm"] == HelperLLM.llama:
-        #TODO
-        pass
-    elif settings["helper_llm"] == HelperLLM.gemini:
-        os.environ["GOOGLE_API_KEY"] = settings["helper_llm_api_key"]
-        from langchain_google_genai import ChatGoogleGenerativeAI
-        custom_llm = ChatGoogleGenerativeAI(
-            model=settings["helper_llm_model"],
-            temperature=0,
-            max_tokens=None,
-            timeout=None,
-            max_retries=2
-        )
     
-    enable_query_debugger = settings["enable_query_debugger"]
+    apply_settings(settings)
+
 
 @tool
 def database(tool_input, cat):
@@ -163,6 +172,7 @@ Important rules:
             "result": str(e)
         }
     return json.dumps(response)
+
 
 @form
 class DBForm(CatForm):
