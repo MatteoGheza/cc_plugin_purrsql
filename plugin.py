@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from enum import Enum
 import json
 
+import sqlparse
+
 from langchain_community.utilities import SQLDatabase
 from langchain.chains import create_sql_query_chain
 from langchain_core.output_parsers import StrOutputParser
@@ -44,6 +46,7 @@ def database(tool_input, cat):
     """This plugin should be used when user asks to get, insert, update, filter, delete data from the database.
 Data can be ordered or filtered in different ways.
 tool_input is a HUMAN FORMATTED STRING, WHICH IS A QUESTION OR COMMAND, NOT SQL QUERY OR ANYTHING ELSE.
+The command can be multiple requests, separated by a period, which will be executed in order.
 The output is a JSON object, with "result" key containing the result of the query and "columns" key containing the column names.
 If the query returns error, the "result" key contains the error message string.
 PROVIDE THE DATA IN A MARKDOWN TABLE FORMAT, WITH THE FIRST ROW BEING THE KEY NAMES.
@@ -83,7 +86,9 @@ Example output:
 If there are any of the above mistakes, rewrite the query.
 If there are no mistakes, just reproduce the original query with no further commentary.
 
-Output the final SQL query only."""
+Output the final SQL query only.
+If there are multiple queries, output them separated by a semicolon.
+"""
     prompt = ChatPromptTemplate.from_messages(
         [("system", system), ("human", "{query}")]
     ).partial(dialect=db.dialect)
@@ -103,9 +108,16 @@ Output the final SQL query only."""
     try:
         log.info(query)
         cat.send_chat_message(f"""Query SQL eseguita: \n```sql\n{query}\n```""")
-        result = str(db.run(query))
+
+        statements = sqlparse.split(query)
+
+        result = []
+        for statement in statements:
+            result.append(str(db.run(statement)))
+
         columns_json = cat.llm(f"Extract the result columns from the SQL query and return a JSON list of strings: {query}. If not applicable, reply with '[]'.")
         columns = json.loads(columns_json.replace("\n", "").replace("```json", "").replace("```", ""))
+
         response = {
             "result": result,
             "columns": columns
