@@ -13,6 +13,7 @@ class PurrSQLSettings(BaseModel):
     enable_query_debugger: bool = True
     helper_llm_api_key: str = ""
     helper_llm_model: str = ""
+    helper_llm_base_url: str = ""
     helper_llm: HelperLLM = HelperLLM.cat
 
 class DBType(str, Enum):

@@ -2,8 +2,7 @@ from cat.mad_hatter.decorators import tool, hook, plugin
 from cat.log import log
 from cat.experimental.form import CatForm, CatFormState, form
 
-from typing import List
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 import json
 import os
@@ -14,7 +13,7 @@ from langchain.chains import create_sql_query_chain
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from cat.plugins.purrsql.models import HelperLLM, PurrSQLSettings, DBConnectionInfo, EXAMPLE_DB_URL
+from cat.plugins.purrsql.models import HelperLLM, PurrSQLSettings, DBConnectionInfo
 from cat.plugins.purrsql.helpers import clean_langchain_query, extract_columns_from_query
 
 @hook
@@ -39,14 +38,20 @@ def apply_settings(settings):
 
     match settings["helper_llm"]:
         case HelperLLM.llama:
-            #TODO
+            from langchain_ollama import ChatOllama
+            custom_llm = ChatOllama(
+                model=settings["helper_llm_model"],
+                base_url=settings["helper_llm_base_url"],
+                temperature=0.7,
+                max_retries=2
+            )
             pass
         case HelperLLM.gemini:
             os.environ["GOOGLE_API_KEY"] = settings["helper_llm_api_key"]
             from langchain_google_genai import ChatGoogleGenerativeAI
             custom_llm = ChatGoogleGenerativeAI(
                 model=settings["helper_llm_model"],
-                temperature=0,
+                temperature=0.7,
                 max_tokens=None,
                 timeout=None,
                 max_retries=2
