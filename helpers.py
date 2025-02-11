@@ -1,4 +1,5 @@
 import json
+from cat.log import log
 
 def clean_langchain_query(query):
     if query.startswith("SQLQuery: "):
@@ -20,9 +21,13 @@ def extract_columns_from_query(llm, query):
     ]
     
     # Check if the query is a SELECT, SHOW, DESCRIBE, EXPLAIN, or WITH query, or if it contains a RETURNING clause
-    if any(query_lower.startswith(qt) for qt in query_types) or " returning " in query_lower:
-        columns_json = llm.invoke(f"Extract the result columns from the SQL query and return a JSON list of strings: {query}. If not applicable, reply with '[]'.").content
-        return json.loads(columns_json.replace("\n", "").replace("```json", "").replace("```", ""))
-    else:
-        # If this query does not return any columns, return an empty list without invoking the LLM
+    try:
+        if any(query_lower.startswith(qt) for qt in query_types) or " returning " in query_lower:
+            columns_json = llm.invoke(f"From the following SQL query, extract the list of columns that a DBMS would return if ran: {query}. If not applicable, reply with '[]'.").content
+            return json.loads(columns_json.replace("\n", "").replace("```json", "").replace("```", ""))
+        else:
+            # If this query does not return any columns, return an empty list without invoking the LLM
+            return []
+    except Exception as e:
+        log.error(f"Error extracting columns from query: {e}")
         return []

@@ -19,7 +19,7 @@ from cat.plugins.purrsql.helpers import clean_langchain_query, extract_columns_f
 @hook
 def agent_prompt_prefix(prefix, cat):
     return """You are a DB client. You reply in a complete and precise way to user questions.
-You can query a SQLite database from an ordering system.
+You can query a database and retrieve data from it.
 When suited, provide the data in a markdown table format, with the first row being the key names, else provide the data in a human readable format.
 """
 
@@ -91,13 +91,14 @@ def after_cat_bootstrap(cat):
 
 @tool
 def query_database_data(tool_input, cat):
-    """This plugin should be used when user asks to get, insert, update, filter, delete data from the database.
+    """Use this plugin whenever a user wants to perform database operations such as retrieving, inserting, updating, filtering, or deleting data. The plugin must interpret natural language commands (not SQL) and generate the appropriate JSON response.
 Data can be ordered or filtered in different ways.
 tool_input is a HUMAN FORMATTED STRING, WHICH IS A QUESTION OR COMMAND, NOT SQL QUERY OR ANYTHING ELSE.
 The command can be multiple requests, separated by "THEN", which will be executed in order.
 The output is a JSON object, with "result" key containing the result of the query and "columns" key containing the column names.
 If the query returns error, the "result" key contains the error message string.
 PROVIDE THE DATA IN A MARKDOWN TABLE FORMAT, WITH THE FIRST ROW BEING THE KEY NAMES.
+IF RESULT IS EMPTY, EXPLAIN THAT NO DATA WAS FOUND.
 Example queries:
 - "Show me the list of products"
 - "Query orders ordered by added date"
@@ -108,7 +109,8 @@ Example output:
     "columns": ["id", "name", "price"]
 }
 {
-    "result": "no data found"
+    "result": "",
+    "columns": ["id", "name"]
 }
 """
     global db, custom_llm, enable_query_debugger
