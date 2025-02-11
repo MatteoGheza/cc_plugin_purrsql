@@ -90,7 +90,7 @@ def after_cat_bootstrap(cat):
 
 
 @tool
-def database(tool_input, cat):
+def query_database_data(tool_input, cat):
     """This plugin should be used when user asks to get, insert, update, filter, delete data from the database.
 Data can be ordered or filtered in different ways.
 tool_input is a HUMAN FORMATTED STRING, WHICH IS A QUESTION OR COMMAND, NOT SQL QUERY OR ANYTHING ELSE.
