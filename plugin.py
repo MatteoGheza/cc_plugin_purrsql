@@ -250,7 +250,9 @@ class DBForm(CatForm):
             info_list = separator + separator.join([f"{k}: {v}" for k, v in self._model.items()])
             out = f"""Connection settings provided until now:{info_list}<br>{missing_fields}{invalid_fields}"""
         else:
-            return "Please provide the database connection information."
+            return {
+                "output": "Please provide the database connection information."
+            }
         
         if self._state == CatFormState.WAIT_CONFIRM:
             out += "\n --> Write 'yes' to confirm and connect, 'no' to cancel."
