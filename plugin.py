@@ -216,14 +216,14 @@ def check_db_connection(tool_input, cat):
 
 @form
 class DBForm(CatForm):
-    description = "Remote DB Connection"
+    description = "Generate a new database connection URI that can be used in settings to connect to a database."
     model_class = DBConnectionInfo
     start_examples = [
-        "start new database connection",
-        "start new MySQL/PostgreSQL/SQLite connection"
+        "generate new database connection URI",
+        "generate new MySQL/PostgreSQL/SQLite connection URL"
     ]
     stop_examples = [
-        "do not connect database",
+        "stop generating connection URL",
         "stop connecting to database"
     ]
     ask_confirm = True
@@ -251,7 +251,7 @@ class DBForm(CatForm):
             out = f"""Connection settings provided until now:{info_list}<br>{missing_fields}{invalid_fields}"""
         else:
             return {
-                "output": "Please provide the database connection information."
+                "output": "Please provide the database connection information to generate connection URI."
             }
         
         if self._state == CatFormState.WAIT_CONFIRM:
@@ -315,30 +315,6 @@ class DBForm(CatForm):
         conn_url = clean_langchain_query(
             self.cat.llm(f"""You now return ONLY a data connection for a DB client to connect to a DB. Make a DB connection url from the following data: {json.dumps(form_data)}""")
         )
-        
-        settings_updated = False
-
-        try:
-            settings_path = os.path.join(os.path.dirname(__file__), "settings.json")
-            settings = {}
-            with open(settings_path, "r") as f:
-                settings = json.load(f)
-                settings["db_url"] = conn_url
-            with open(settings_path, "w") as f:
-                json.dump(settings, f, indent=4)
-            
-            apply_settings(settings)
-            settings_updated = True
-        except Exception as e:
-            log.error(f"Failed to update the settings from runtime: {e}")
-        
-        if settings_updated:
-            if enable_query_debugger:
-                self.cat.send_chat_message(f"""Stringa di connessione: \n```{conn_url}```""")
-            return {
-                "output": "La configurazione è stata aggiornata."
-            }
-        else:
-            return {
-                "output": f"Errore durante l'aggiornamento della configurazione. Impostare manualmente la stringa di connessione dalle impostazioni:\n```{conn_url}```"""
-            }
+        return {
+            "output": f"""Connection URL: \n```{conn_url}```"""
+        }
