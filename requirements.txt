@@ -2,3 +2,5 @@ langchain-community
 langchain_google_genai
 langchain-ollama
 sqlparse==0.5.3
+pymysql
+psycopg

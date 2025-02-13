@@ -40,7 +40,10 @@ def apply_settings(settings):
     global db, custom_llm, enable_query_debugger
 
     try:
-        db = SQLDatabase.from_uri(settings["db_url"])
+        db_url = settings["db_url"]
+        if db_url.startswith("mysql://"):
+            db_url = db_url.replace("mysql://", "mysql+pymysql://")
+        db = SQLDatabase.from_uri(db_url)
         save_db_table_names()
     except Exception as e:
         log.error(f"Failed to connect to the database: {e}")
