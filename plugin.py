@@ -99,6 +99,13 @@ def after_cat_bootstrap(cat):
 
 
 @tool
+def improve_natural_language_queries(tool_input, cat):
+    """Use this plugin whenever a user requests data of the following types: "albums", "artists", "customers", "employees", "genres", "invoices", "invoice_items", "media_types", "playlists", "playlist_track", "tracks".
+Tool input is the user request, in natural language, without any updates."""
+    return f"Query the db to {tool_input}"
+
+
+@tool
 def query_database_data(tool_input, cat):
     """Use this plugin whenever a user wants to perform database operations such as retrieving, inserting, updating, filtering, or deleting data. The plugin must interpret natural language commands (not SQL) and generate the appropriate JSON response.
 Data can be ordered or filtered in different ways.
