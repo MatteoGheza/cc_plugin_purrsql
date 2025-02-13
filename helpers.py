@@ -1,6 +1,8 @@
 import json
 from cat.log import log
 
+from langchain.output_parsers import CommaSeparatedListOutputParser
+
 def clean_langchain_query(query):
     if query.startswith("SQLQuery: "):
         query = query.split(": ")[1]
@@ -10,8 +12,8 @@ def clean_langchain_query(query):
         query = query.split("sql ")[1]
     return query.strip()
 
-def extract_columns_from_query(llm, query):
-    query_lower = query.lower()
+def extract_columns_from_query(llm, sql_statement):
+    query_lower = sql_statement.lower()
     query_types = [
         "select",
         "show",
@@ -23,8 +25,12 @@ def extract_columns_from_query(llm, query):
     # Check if the query is a SELECT, SHOW, DESCRIBE, EXPLAIN, or WITH query, or if it contains a RETURNING clause
     try:
         if any(query_lower.startswith(qt) for qt in query_types) or " returning " in query_lower:
-            columns_json = llm.invoke(f"From the following SQL query, extract the list of columns that a DBMS would return if ran: {query}. If not applicable, reply with '[]'.").content
-            return json.loads(columns_json.replace("\n", "").replace("```json", "").replace("```", ""))
+            llm_output = llm.invoke(f"You extract column names from SQL statements. Given the following SQL statement, extract the column names and return them as a comma-separated list: {sql_statement}").content
+
+            if llm_output:
+                return CommaSeparatedListOutputParser().parse(llm_output)
+            else:
+                return []
         else:
             # If this query does not return any columns, return an empty list without invoking the LLM
             return []
