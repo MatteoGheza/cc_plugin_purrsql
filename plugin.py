@@ -215,7 +215,7 @@ def check_db_connection(tool_input, cat):
 
 
 @form
-class DBForm(CatForm):
+class DBConnectionURIForm(CatForm):
     description = "Generate a new database connection URI that can be used in settings to connect to a database."
     model_class = DBConnectionInfo
     start_examples = [
