@@ -146,6 +146,7 @@ For each query in the input:
 - If selecting data from multiple tables, ensure that the join conditions are correct
 - If selecting data from multiple tables, ensure that every column name is unique or aliased
 - Make sure the table exists and the column names are correct
+- If no limit is specified, add a limit of 50 rows
 
 2. If there are any mistakes in a query, rewrite that specific query.
 3. If there are no mistakes in a query, reproduce it exactly as is.
