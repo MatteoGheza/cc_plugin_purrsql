@@ -18,20 +18,30 @@ from cat.plugins.purrsql.helpers import clean_langchain_query, extract_columns_f
 
 @hook
 def agent_prompt_prefix(prefix, cat):
-    return """You are a DB client. You reply in a complete and precise way to user questions.
+    global tables_list
+    db_tables = ", ".join(tables_list) if tables_list else "unknown tables"
+    return f"""You are a DB client. You reply in a complete and precise way to user questions.
 You can query a database and retrieve data from it.
 When suited, provide the data in a markdown table format, with the first row being the key names, else provide the data in a human readable format.
+The DB tables you can query are: {db_tables}.
 """
 
 db = None
+tables_list = []
 custom_llm = None
 enable_query_debugger = True
+
+def save_db_table_names():
+    global db, tables_list
+    if db is not None:
+        tables_list = db.get_usable_table_names()
 
 def apply_settings(settings):
     global db, custom_llm, enable_query_debugger
 
     try:
         db = SQLDatabase.from_uri(settings["db_url"])
+        save_db_table_names()
     except Exception as e:
         log.error(f"Failed to connect to the database: {e}")
         db = None
@@ -100,8 +110,12 @@ def after_cat_bootstrap(cat):
 
 @tool
 def improve_natural_language_queries(tool_input, cat):
-    """Use this plugin whenever a user requests data of the following types: "albums", "artists", "customers", "employees", "genres", "invoices", "invoice_items", "media_types", "playlists", "playlist_track", "tracks".
-Tool input is the user request, in natural language, without any updates."""
+    """Use this plugin whenever a user requests data of one of the DB tables.
+Tool input is the user request, in natural language, without any updates.
+Examples:
+- Get all albums
+- What are the most frequent nationality states of the customers?
+"""
     return f"Query the db to {tool_input}"
 
 
@@ -211,7 +225,7 @@ Important rules:
 @tool
 def check_db_connection(tool_input, cat):
     """This plugin should be used when user asks if database connection works."""
-    global db
+    global db, tables_list
     settings = cat.mad_hatter.get_plugin().load_settings()
 
     if db is None:
@@ -226,8 +240,10 @@ def check_db_connection(tool_input, cat):
         except Exception as e:
             return f"Database connection failed: {e}"
         
+        save_db_table_names()
+        
         return json.dumps({
-            "tables": db.get_usable_table_names()
+            "tables": tables_list
         })
 
 
