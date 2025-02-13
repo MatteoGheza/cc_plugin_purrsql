@@ -122,29 +122,23 @@ Examples:
     return f"Query the db to {tool_input}"
 
 
-@tool
+@tool(
+    examples=[
+        "Show me the list of products",
+        "Query orders ordered by added date",
+        "Show me the list of products with price less than 10",
+        "Get all the products."
+    ]
+)
 def query_database_data(tool_input, cat):
-    """Use this plugin whenever a user wants to perform database operations such as retrieving, inserting, updating, filtering, or deleting data. The plugin must interpret natural language commands (not SQL) and generate the appropriate JSON response.
-Data can be ordered or filtered in different ways.
-tool_input is a HUMAN FORMATTED STRING, WHICH IS A QUESTION OR COMMAND, NOT SQL QUERY OR ANYTHING ELSE.
+    """Use this to perform database operations such as retrieving, inserting, updating, filtering, or deleting data.
+The plugin interprets natural language commands (not SQL) and generates the appropriate JSON response.
+tool_input is a HUMAN FORMATTED STRING, WHICH IS A QUESTION OR COMMAND, NOT AN SQL QUERY OR ANYTHING ELSE.
 The command can be multiple requests, separated by "THEN", which will be executed in order.
-The output is a JSON object, with "result" key containing the result of the query and "columns" key containing the column names.
 If the query returns error, the "result" key contains the error message string.
 PROVIDE THE DATA IN A MARKDOWN TABLE FORMAT, WITH THE FIRST ROW BEING THE KEY NAMES.
-IF RESULT IS EMPTY, EXPLAIN THAT NO DATA WAS FOUND.
-Example queries:
-- "Show me the list of products"
-- "Query orders ordered by added date"
-- "Show me the list of products with price less than 10"
-Example output:
-{
-    "result": [(33, 'VINO ROSSO 1L', 6), (16, 'VINO ROSSO 0,5L', 3)]
-    "columns": ["id", "name", "price"]
-}
-{
-    "result": "",
-    "columns": ["id", "name"]
-}
+Example response:
+{"result": "[('Acqua Naturale 0.5L', 1), ('Birra Bionda', 3.5)", "columns": ["name", "price"]}
 """
     global db, custom_llm, enable_query_debugger
 
@@ -182,6 +176,7 @@ Important rules:
 - Include a semicolon after the last query
 - Do not include any comments in the output
 - Do not skip or ignore any queries
+- When asking for a generic resource or counting groups, do not select only the id but also, if possible, the name
 """
     prompt = ChatPromptTemplate.from_messages(
         [("system", system), ("human", "{query}")]
@@ -207,7 +202,7 @@ Important rules:
         elif len(statements) == 1:
             response = {
                 "result": str(db.run(statements[0])),
-                "columns": extract_columns_from_query(llm, query)
+                "columns": extract_columns_from_query(cat._llm, query)
             }
         else:
             response = []
@@ -216,7 +211,7 @@ Important rules:
                 if not statement.startswith("BEGIN") and not statement.startswith("COMMIT"):
                     response.append({
                         "result": str(db.run(statement)),
-                        "columns": extract_columns_from_query(llm, statement)
+                        "columns": extract_columns_from_query(cat._llm, statement)
                     })
     except Exception as e:
         response = {
