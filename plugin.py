@@ -68,6 +68,15 @@ def settings_model():
 @plugin
 def save_settings(settings):
     apply_settings(settings)
+    # Hacky workaround: there is no way to get a callback when the settings are saved from the api,
+    # so we override the save_settings method to save the settings to a file.
+    # This is not recommended for production use, as it will not work in a multi-instance environment.
+    # The only alternative is to check settings for changes at every prompt_prefix call, but that is not efficient.
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    settings_path = os.path.join(current_dir, "settings.json")
+    with open(settings_path, "w") as f:
+        json.dump(settings, f, indent=4)
+    return settings
 
 @hook  # default priority = 1
 def after_cat_bootstrap(cat):
