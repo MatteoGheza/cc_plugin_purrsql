@@ -110,7 +110,7 @@ def after_cat_bootstrap(cat):
 
 @tool
 def improve_natural_language_queries(tool_input, cat):
-    """Use this plugin whenever a user requests data of one of the DB tables.
+    """Use this plugin whenever a user requests data of one of the DB tables, if not explicitly asking to query the DB.
 Tool input is the user request, in natural language, without any updates.
 Examples:
 - Get all albums
